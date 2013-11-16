@@ -120,7 +120,7 @@ let filter_extra_white html =
       Regex.replace_exn ~f:(fun _->" ") non html
 
 let filter_meaningless html =
-    let non = Regex.create_exn " a | p | pre | em | strong | href | nbsp | ldquo | rdquo " in
+    let non = Regex.create_exn " p | pre | em | strong | href | nbsp | ldquo | rdquo " in
       filter_extra_white (Regex.replace_exn ~f:(fun _->"") non html)
 
 let filter_whole_content html =
@@ -128,7 +128,8 @@ let filter_whole_content html =
       filter_meaningless (Regex.replace_exn ~f:(fun _->" ") non_word html)
 
 let filter_title_content html = 
-    String.lowercase (filter_whole_content (String.concat (is_title_content ((String.split_lines html),Title))))
+    let post = List.rev (is_title_content ((String.split_lines html),Title)) in
+        String.lowercase (filter_whole_content (String.concat post))
     
 let print_result html_list sort page =
     let final_list = List.map ~f:filter_title_content html_list in
