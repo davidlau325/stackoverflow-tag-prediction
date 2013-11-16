@@ -2,9 +2,10 @@ open Core.Std
 open Async.Std
 open Re2
 
-let query_uri query =
-  let base_uri = Uri.of_string "http://stackoverflow.com/questions?sort=votes" in
-  Uri.add_query_param base_uri ("page", [query])
+let query_uri sort page =
+  let base_uri = Uri.of_string "http://stackoverflow.com/questions" in
+    let first_param = Uri.add_query_param base_uri ("sort",[sort]) in
+      Uri.add_query_param first_param ("page", [page])
 
 let question_url question = 
   Uri.of_string ("http://stackoverflow.com" ^ question) 
@@ -119,7 +120,7 @@ let filter_extra_white html =
       Regex.replace_exn ~f:(fun _->" ") non html
 
 let filter_meaningless html =
-    let non = Regex.create_exn " p | pre | em | strong | href | nbsp | ldquo | rdquo " in
+    let non = Regex.create_exn " a | p | pre | em | strong | href | nbsp | ldquo | rdquo " in
       filter_extra_white (Regex.replace_exn ~f:(fun _->"") non html)
 
 let filter_whole_content html =
@@ -129,9 +130,9 @@ let filter_whole_content html =
 let filter_title_content html = 
     String.lowercase (filter_whole_content (String.concat (is_title_content ((String.split_lines html),Title))))
     
-let print_result html_list page =
+let print_result html_list sort page =
     let final_list = List.map ~f:filter_title_content html_list in
-      let fd = Out_channel.create ("page" ^ page ^ ".txt") in
+      let fd = Out_channel.create (sort ^ "-" ^ page ^ ".txt") in
         protect ~f:(fun () ->
           Out_channel.output_string fd (String.concat ~sep:"\n@@@@\n" final_list);
           printf "Done!\n"
@@ -147,21 +148,24 @@ let rec crawl_question url_list =
      | [] -> []
      | x::xs -> (get_question (question_url x))::crawl_question xs
 
-let crawl_question_url page =
-    get_html (query_uri page)
-    >>| fun url_list -> let filtered = filter_question url_list in
-                            Deferred.all (crawl_question filtered)
-                            >>| fun html_list -> print_result html_list page
+let crawl_question_url sort page =
+    ignore(get_html (query_uri sort page)
+    >>| fun url_list -> 
+          let filtered = filter_question url_list in
+              Deferred.all (crawl_question filtered)
+              >>| fun html_list -> print_result html_list sort page);
+    Deferred.never ()
 
-let () = ignore(crawl_question_url "1"); 
-          never_returns(Scheduler.go ())
 
- (* Command.async_basic
-    ~summary:"Retrieve html content from the page"
+let () =
+    Command.async_basic
+    ~summary:"Crawl questions from StackOverflow"
     Command.Spec.(
-      empty
+        empty
+        +> anon ("[Sort Type]" %:string)
+        +> anon ("[Page Number]" %:string)
     )
-    (fun () -> crawl_and_print "1")
-  |> Command.run *)
+    (fun sort page () -> crawl_question_url sort page)
+    |> Command.run ~version:"0.1" ~build_info:"ENGG5103"
 
 
