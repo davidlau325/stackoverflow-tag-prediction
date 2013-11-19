@@ -11,12 +11,16 @@ clean_build:
 	@rm extract.native || (echo "No extract.native found")
 	@echo "Clean build file done!"
 
+.PHONT:clean_crawl
+clean_crawl:
+	@rm *.txt || (echo "No crawled txt file found")
+	@echo "Clean crawl file done!"
+
 .PHONY:clean_extract
 clean_extract:
 	@rm -r title || (echo "No title directory found")
 	@rm -r content || (echo "No content directory found")
 	@rm -r tags || (echo "No tags directory found")
-	@rm *.txt || (echo "No crawled txt file found")
 	@echo "Clean extract file done!"
 
 
