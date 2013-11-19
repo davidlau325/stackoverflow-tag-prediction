@@ -6,6 +6,7 @@ exception IncorrectFileFormat
 exception EmptyWordFileError
 
 let total_tag = ref 0
+let total_word = ref 0
 
 let prepare_dir dir_list =
 	List.iter ~f:(fun name -> 
@@ -27,38 +28,40 @@ let process_tag line _ =
 		List.iter tag_list2 ~f:(fun tag ->
 			if String.is_empty tag then ()
 			else begin
+				incr total_tag;
 				let full_path = ("tags/" ^ tag ^ ".txt") in
 				if Sys.is_file_exn full_path
 				then begin
 					let num = string_of_int ((int_of_string (get_occurrence full_path true)) + 1) in
 					Out_channel.with_file full_path ~append:false
-					~f:(fun fd -> total_tag:=(!total_tag)+1;Out_channel.output_string fd (tag ^ " " ^ num ^ "\n"))
+					~f:(fun fd -> Out_channel.output_string fd (tag ^ " " ^ num))
 				end
 				else begin
 					Out_channel.with_file full_path
-					~f:(fun fd -> total_tag:=(!total_tag)+1;Out_channel.output_string fd (tag ^ " 1\n"))
+					~f:(fun fd -> Out_channel.output_string fd (tag ^ " 1"))
 				end
 			end 
 		);
 		tag_list2
 
-let process_word line tag_list dir =
+let process_word line tag_list =
 	let word_list = String.split ~on:' ' line in
 		List.iter word_list ~f:(fun word ->
 			if String.is_empty word then ()
 			else begin
-				prepare_dir [(dir ^ "/" ^ word)];
+				incr total_word;
+				prepare_dir [("words/" ^ word)];
 				List.iter tag_list ~f:(fun tag ->
-					let full_path = (dir ^ "/" ^ word ^ "/" ^ tag ^ ".txt") in
+					let full_path = ("words/" ^ word ^ "/" ^ tag ^ ".txt") in
 					if Sys.is_file_exn full_path
 					then begin
 						let num = string_of_int ((int_of_string (get_occurrence full_path false))+1) in
 						Out_channel.with_file full_path ~append:false
-						~f:(fun fd -> Out_channel.output_string fd (word ^ " " ^ tag ^ " " ^ num ^ "\n"))
+						~f:(fun fd -> Out_channel.output_string fd (word ^ " " ^ tag ^ " " ^ num))
 					end
 					else begin
 						Out_channel.with_file full_path
-						~f:(fun fd -> Out_channel.output_string fd (word ^ " " ^ tag ^ " 1\n"))
+						~f:(fun fd -> Out_channel.output_string fd (word ^ " " ^ tag ^ " 1"))
 					end 
 				)
 			end 
@@ -77,11 +80,11 @@ let rec loop_file fd status tag_list =
 	| TagEnd -> process_line ~fd ~status:Content ~check:true ~tag_list 
 			 ~f:(fun _ tag_list -> tag_list)
 	| Content -> process_line ~fd ~status:ContentEnd ~check:true ~tag_list
-			 ~f:(fun line tag_list -> process_word line tag_list "content")
+			 ~f:(fun line tag_list -> process_word line tag_list)
 	| ContentEnd -> process_line ~fd ~status:Title ~check:true ~tag_list
 			 ~f:(fun _ tag_list -> tag_list)
 	| Title -> process_line ~fd ~status:TitleEnd ~check:true ~tag_list
-			 ~f:(fun line tag_list -> process_word line tag_list "title")
+			 ~f:(fun line tag_list -> process_word line tag_list)
 	| TitleEnd -> process_line ~fd ~status:Tag ~check:false ~tag_list
 			 ~f:(fun _ tag_list -> tag_list)
 
@@ -89,11 +92,11 @@ let count_base_level () =
 	let tag_list = Sys.ls_dir "tags" in
 		List.iter tag_list ~f:(fun tag -> 
 			if String.is_suffix tag ~suffix:".txt" then begin
-			let num = printf "%s\n" tag; get_occurrence ("tags/" ^ tag) true in
+			let num = get_occurrence ("tags/" ^ tag) true in
 				let pro = (Float.of_int (int_of_string num)) /. (Float.of_int !total_tag) in
 					let base_level = log (pro /. (1.0 -. pro)) in
 				Out_channel.with_file ("tags/" ^ tag) ~append:true
-				~f:(fun fd -> Out_channel.output_string fd (Float.to_string_hum ~decimals:3 ~strip_zero:true base_level))
+				~f:(fun fd -> Out_channel.output_string fd (" " ^ (Float.to_string_hum ~decimals:3 ~strip_zero:true base_level)))
 			end
 			else ()
 			)
@@ -101,10 +104,11 @@ let count_base_level () =
 let extract_file filename =
 	In_channel.with_file filename 
 		~f:(fun fd -> loop_file fd Tag []);
-		count_base_level ()
+		count_base_level ();
+		printf "Done! %d\n" !total_word
 
 let () = 
-	prepare_dir ["title";"content";"tags"];
+	prepare_dir ["words";"tags"];
 	Command.basic 
 		~summary: "Extract word co-occurances and tags information from file"
 		Command.Spec.(
