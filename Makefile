@@ -13,7 +13,7 @@ clean_build:
 
 .PHONT:clean_crawl
 clean_crawl:
-	@rm *.txt || (echo "No crawled txt file found")
+	@rm -r crawl || (echo "No crawled file found")
 	@echo "Clean crawl file done!"
 
 .PHONY:clean_extract

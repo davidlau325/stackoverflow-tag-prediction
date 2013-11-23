@@ -105,7 +105,7 @@ let extract_file filename =
 	In_channel.with_file filename 
 		~f:(fun fd -> loop_file fd Tag []);
 		count_base_level ();
-		printf "Done! %d\n" !total_word
+		printf "Done! %s %d\n" filename !total_word
 
 let () = 
 	prepare_dir ["words";"tags"];

@@ -133,7 +133,7 @@ let filter_title_content html =
     
 let print_result html_list sort page =
     let final_list = List.map ~f:filter_title_content html_list in
-      let fd = Out_channel.create (sort ^ "-" ^ page ^ ".txt") in
+      let fd = Out_channel.create ("crawl/" ^ sort ^ "-" ^ page ^ ".txt") in
         protect ~f:(fun () ->
           Out_channel.output_string fd (String.concat ~sep:"\n@@@@\n" final_list);
           printf "Done!\n"
@@ -150,6 +150,7 @@ let rec crawl_question url_list =
      | x::xs -> (get_question (question_url x))::crawl_question xs
 
 let crawl_question_url sort page =
+    ignore(Unix.mkdir "crawl");
     ignore(get_html (query_uri sort page)
     >>| fun url_list -> 
           let filtered = filter_question url_list in
