@@ -149,8 +149,13 @@ let rec crawl_question url_list =
      | [] -> []
      | x::xs -> (get_question (question_url x))::crawl_question xs
 
+let prepare_dir dirname =
+  Sys.is_directory_exn dirname 
+  >>| fun is_dir -> if is_dir then ()
+  else ignore(Unix.mkdir dirname) 
+
 let crawl_question_url sort page =
-    ignore(Unix.mkdir "crawl");
+    ignore(prepare_dir "crawl");
     ignore(get_html (query_uri sort page)
     >>| fun url_list -> 
           let filtered = filter_question url_list in
