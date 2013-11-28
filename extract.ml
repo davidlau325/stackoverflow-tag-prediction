@@ -22,6 +22,10 @@ let get_occurrence full_path =
 		| Some line -> let name = String.split ~on:' ' line in
 						(List.nth_exn name 1, List.nth_exn name 2))
 
+let write_string ~path ~s ~append =
+	Out_channel.with_file path ~append
+	~f:(fun fd -> Out_channel.output_string fd s)
+
 let process_tag line _ =
 	let tag_list2 = String.split ~on:' ' line in
 		List.iter tag_list2 ~f:(fun tag ->
@@ -33,21 +37,17 @@ let process_tag line _ =
 				then begin
 					let (occur,n) = get_occurrence full_path in
 					let num = string_of_int ((int_of_string occur) + 1) in
-					Out_channel.with_file full_path ~append:false
-					~f:(fun fd -> Out_channel.output_string fd (tag ^ " " ^ num ^ " " ^ n))
+						write_string ~path:full_path ~append:false ~s:(tag ^ " " ^ num ^ " " ^ n)
 				end
 				else begin
-					Out_channel.with_file full_path
-					~f:(fun fd -> Out_channel.output_string fd (tag ^ " 1 0"))
+					write_string ~path:full_path ~append:true ~s:(tag ^ " 1 0")
 				end
 			end 
 		);
 		tag_list2
 
 let increase_col acc n tag full_path =
-	Out_channel.with_file full_path ~append:false
-	~f:(fun fd -> Out_channel.output_string fd 
-		(tag ^ " " ^ acc ^ " " ^ (string_of_int ((int_of_string n)+1))))
+	write_string ~path:full_path ~append:false ~s:(tag ^ " " ^ acc ^ " " ^ (string_of_int ((int_of_string n)+1)))
 
 let increase_row word add =
 	let full_path = ("words/" ^ word ^ "/_count.txt") in
@@ -56,9 +56,7 @@ let increase_row word add =
 	then ((int_of_string (fst (get_occurrence full_path))) + add)
 	else add
 	in
-	Out_channel.with_file full_path ~append:false
-		~f:(fun fd -> Out_channel.output_string fd
-			(word ^ " " ^ (string_of_int total) ^ " 0"))
+	write_string ~path:full_path ~append:false ~s:(word ^ " " ^ (string_of_int total) ^ " 0")
 
 let process_word line tag_list =
 	let word_list = String.split ~on:' ' line in
@@ -77,12 +75,10 @@ let process_word line tag_list =
 					then begin
 						let (_,occur) = get_occurrence full_path in 
 						let num = string_of_int ((int_of_string occur)+1) in
-						Out_channel.with_file full_path ~append:false
-						~f:(fun fd -> Out_channel.output_string fd (word ^ " " ^ tag ^ " " ^ num))
+						write_string ~path:full_path ~append:false ~s:(word ^ " " ^ tag ^ " " ^ num)
 					end
 					else begin
-						Out_channel.with_file full_path
-						~f:(fun fd -> Out_channel.output_string fd (word ^ " " ^ tag ^ " 1"))
+						write_string ~path:full_path ~append:true ~s:(word ^ " " ^ tag ^ " 1")
 					end 
 				)
 			end 
@@ -121,18 +117,43 @@ let count_base_level () =
 		List.iter tag_list ~f:(fun tag -> 
 			if String.is_suffix tag ~suffix:".txt" then begin
 			let (num,_) = get_occurrence ("tags/" ^ tag) in
-				let pro = (Float.of_int (int_of_string num)) /. (Float.of_int !total_tag) in
+				let pro = (Float.of_string num) /. (Float.of_int !total_tag) in
 					let base_level = log (pro /. (1.0 -. pro)) in
-				Out_channel.with_file ("tags/" ^ tag) ~append:true
-				~f:(fun fd -> Out_channel.output_string fd (" " ^ (Float.to_string_hum ~decimals:3 ~strip_zero:true base_level)))
+				write_string ~path:("tags/" ^ tag) ~append:true ~s:(" " ^ (Float.to_string_hum ~decimals:3 ~strip_zero:true base_level))
 			end
 			else ()
 			)
 
+let compute_strength_assoc () =
+	let word_list = Sys.ls_dir "words" in
+		List.iter word_list ~f:(fun word ->
+			if Sys.is_directory_exn ("words/" ^ word) then begin
+			let (nRow,_) = get_occurrence ("words/" ^ word ^ "/_count.txt") in
+			let tag_list = Sys.ls_dir ("words/" ^ word ) in
+			List.iter tag_list ~f:(fun tag ->
+				if (String.is_suffix tag ~suffix:".txt") && (tag <> "_count.txt") then begin
+					let tag_path = ("words/" ^ word ^ "/" ^ tag) in
+					let (tag_name,nJI) = get_occurrence tag_path in
+					let (_,nCol) = get_occurrence ("tags/" ^ tag_name ^ ".txt") in
+					let sAssc = (((Float.of_int !total_word) *. (Float.of_string nJI)) /. 
+								((Float.of_string nRow) *. (Float.of_string nCol))) in
+					if tag = "java.txt" then begin 
+					printf "Assc: %f N:%d Nji:%s Nrow:%s Ncol:%s\n" sAssc !total_word nJI nRow nCol
+					end;
+					write_string ~path:tag_path ~append:true ~s:(" " ^ Float.to_string_hum ~decimals:3 ~strip_zero:true sAssc)
+				end
+				else ()
+			)
+			end
+			else () 
+		)
+
 let run_extract () =
 	let file_list = Sys.ls_dir "crawl" in
-		List.iter file_list ~f:(fun filename -> extract_file ("crawl/"^filename));
-		count_base_level ()
+		List.iter file_list ~f:(fun filename -> 
+			if String.is_suffix filename ~suffix:".txt" then extract_file ("crawl/"^filename));
+		count_base_level ();
+		compute_strength_assoc ()
 
 let () = 
 	prepare_dir ["words";"tags"];

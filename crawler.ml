@@ -60,7 +60,7 @@ let is_code_end line =
     Regex.matches content line
 
 let is_div_end line =
-    let content_end = Regex.create_exn "</div>" in
+    let content_end = Regex.create_exn "(.*)</div>(.*)" in
     Regex.matches content_end line
 
 let is_tag line =
@@ -101,13 +101,9 @@ let rec is_title_content = function
                           else x::(is_title_content (xs,PEnd))
         | (x::xs,ContentEnd) -> if (is_div_end x)
                                 then "\n###\n"::(is_title_content (xs,Tag))
-                                else if (is_full_content x)
-                                then (get_full_content x)::(is_title_content (xs,ContentEnd))
-                                else if (is_valid_content x) 
-                                then x::(is_title_content (xs,PEnd))
-                                else if (is_code_content x)
-                                then x::(is_title_content (xs,CodeEnd))
-                                else is_title_content (xs,ContentEnd) 
+                                else if String.is_empty x
+                                then is_title_content (xs,ContentEnd) 
+                                else x::" "::(is_title_content (xs,ContentEnd))
         | (x::xs,Tag) -> if (is_tag x)
                          then is_title_content (xs,TagEnd)
                          else is_title_content (xs,Tag)
@@ -120,16 +116,15 @@ let filter_extra_white html =
       Regex.replace_exn ~f:(fun _->" ") non html
 
 let filter_meaningless html =
-    let non = Regex.create_exn " p | pre | em | strong | href | nbsp | ldquo | rdquo " in
-      filter_extra_white (Regex.replace_exn ~f:(fun _->"") non html)
-
-let filter_whole_content html =
-    let non_word = Regex.create_exn "[^a-zA-Z0-9#\+\-\n ]" in
-      filter_meaningless (Regex.replace_exn ~f:(fun _->" ") non_word html)
+    let less = Regex.create_exn "<[^>]*>|<a(.+?)</a>|&#39;|&#39;|&nbsp;|&ldquo;|&rdquo;|&gt;|&lt;|[^a-zA-Z0-9#\+\-\n ]" in 
+      Regex.replace_exn ~f:(fun _->" ") less html
 
 let filter_title_content html = 
     let post = List.rev (is_title_content ((String.split_lines html),Title)) in
-        String.lowercase (filter_whole_content (String.concat post))
+        String.concat post
+        |> filter_meaningless
+        |> filter_extra_white
+        |> String.lowercase
     
 let print_result html_list sort page =
     let final_list = List.map ~f:filter_title_content html_list in
