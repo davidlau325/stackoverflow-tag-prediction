@@ -14,6 +14,7 @@ clean_build:
 .PHONT:clean_crawl
 clean_crawl:
 	@rm -r crawl || (echo "No crawled file found")
+	@rm -r test || (echo "No test file found")
 	@echo "Clean crawl file done!"
 
 .PHONY:clean_extract

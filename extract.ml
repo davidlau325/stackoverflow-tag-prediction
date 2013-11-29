@@ -7,6 +7,8 @@ exception EmptyWordFileError
 
 let total_tag = ref 0
 let total_word = ref 0
+let hMax = ref 0.0
+let sumEj = ref 0.0
 
 let prepare_dir dir_list =
 	List.iter ~f:(fun name -> 
@@ -44,7 +46,7 @@ let process_tag line _ =
 				end
 			end 
 		);
-		tag_list2
+		(List.filter ~f:(fun tag -> tag <> "") tag_list2)
 
 let increase_col acc n tag full_path =
 	write_string ~path:full_path ~append:false ~s:(tag ^ " " ^ acc ^ " " ^ (string_of_int ((int_of_string n)+1)))
@@ -69,7 +71,7 @@ let process_word line tag_list =
 					let full_path = ("words/" ^ word ^ "/" ^ tag ^ ".txt") in
 					let tag_path = ("tags/" ^ tag ^ ".txt") in
 					let (acc,n) = get_occurrence tag_path in
-					increase_col acc n tag ("tags/" ^ tag ^ ".txt"); 
+					increase_col acc n tag tag_path; 
 					incr total_word;
 					if Sys.is_file_exn full_path
 					then begin
@@ -128,32 +130,52 @@ let compute_strength_assoc () =
 	let word_list = Sys.ls_dir "words" in
 		List.iter word_list ~f:(fun word ->
 			if Sys.is_directory_exn ("words/" ^ word) then begin
-			let (nRow,_) = get_occurrence ("words/" ^ word ^ "/_count.txt") in
+			let word_count_path = ("words/" ^ word ^ "/_count.txt") in
+			let (nRow,_) = get_occurrence word_count_path in
 			let tag_list = Sys.ls_dir ("words/" ^ word ) in
+			let hJ = ref 0.0 in
 			List.iter tag_list ~f:(fun tag ->
 				if (String.is_suffix tag ~suffix:".txt") && (tag <> "_count.txt") then begin
 					let tag_path = ("words/" ^ word ^ "/" ^ tag) in
 					let (tag_name,nJI) = get_occurrence tag_path in
 					let (_,nCol) = get_occurrence ("tags/" ^ tag_name ^ ".txt") in
-					let sAssc = (((Float.of_int !total_word) *. (Float.of_string nJI)) /. 
+					let sAssc = log (((Float.of_int !total_word) *. (Float.of_string nJI)) /. 
 								((Float.of_string nRow) *. (Float.of_string nCol))) in
-					if tag = "java.txt" then begin 
-					printf "Assc: %f N:%d Nji:%s Nrow:%s Ncol:%s\n" sAssc !total_word nJI nRow nCol
-					end;
+					let pIJ = ((Float.of_string nJI) /. (Float.of_string nRow)) in
+					hJ := !hJ +. (pIJ *. ((log10 pIJ) /. (log10 2.0)));
 					write_string ~path:tag_path ~append:true ~s:(" " ^ Float.to_string_hum ~decimals:3 ~strip_zero:true sAssc)
 				end
 				else ()
-			)
+			);
+			if !hMax < (-.(!hJ)) then hMax := (-.(!hJ));
+			write_string ~path:word_count_path ~append:false ~s:(word ^ " " ^ nRow ^ " " ^ Float.to_string_hum ~decimals:3 ~strip_zero:true (-.(!hJ)))
 			end
 			else () 
-		)
+		);
+		printf "hMax: %f\n" !hMax
+
+let compute_scaled_entropy () =
+	let word_list = Sys.ls_dir "words" in
+		List.iter word_list ~f:(fun word ->
+			if Sys.is_directory_exn ("words/" ^ word) then begin
+				let count_path = ("words/" ^ word ^ "/_count.txt") in
+				let (_,hJ) = get_occurrence count_path in
+				let eJ = 1.0 -. ((Float.of_string hJ) /. !hMax) in
+				sumEj := !sumEj +. eJ;
+				write_string ~path:count_path ~append:true ~s:(" " ^ Float.to_string_hum ~decimals:3 ~strip_zero:true eJ)
+			end
+			else ()
+		);
+		printf "sumEj: %f\n" !sumEj
 
 let run_extract () =
 	let file_list = Sys.ls_dir "crawl" in
 		List.iter file_list ~f:(fun filename -> 
 			if String.is_suffix filename ~suffix:".txt" then extract_file ("crawl/"^filename));
 		count_base_level ();
-		compute_strength_assoc ()
+		compute_strength_assoc ();
+		compute_scaled_entropy ();
+		write_string ~path:"stat.txt" ~append:false ~s:((Float.to_string_hum ~decimals:3 ~strip_zero:true !hMax) ^ " " ^ (Float.to_string_hum ~decimals:3 ~strip_zero:true !sumEj))
 
 let () = 
 	prepare_dir ["words";"tags"];

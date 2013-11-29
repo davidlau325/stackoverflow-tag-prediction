@@ -126,9 +126,9 @@ let filter_title_content html =
         |> filter_extra_white
         |> String.lowercase
     
-let print_result html_list sort page =
+let print_result html_list sort page folder =
     let final_list = List.map ~f:filter_title_content html_list in
-      let fd = Out_channel.create ("crawl/" ^ sort ^ "-" ^ page ^ ".txt") in
+      let fd = Out_channel.create (folder ^ "/" ^ sort ^ "-" ^ page ^ ".txt") in
         protect ~f:(fun () ->
           Out_channel.output_string fd (String.concat ~sep:"\n@@@@\n" final_list);
           printf "Done!\n"
@@ -149,13 +149,14 @@ let prepare_dir dirname =
   >>| fun is_dir -> if is_dir then ()
   else ignore(Unix.mkdir dirname) 
 
-let crawl_question_url sort page =
-    ignore(prepare_dir "crawl");
+let crawl_question_url sort page test =
+    let folder = if test then "test" else "crawl" in
+    ignore(prepare_dir folder);
     ignore(get_html (query_uri sort page)
     >>| fun url_list -> 
           let filtered = filter_question url_list in
               Deferred.all (crawl_question filtered)
-              >>| fun html_list -> print_result html_list sort page);
+              >>| fun html_list -> print_result html_list sort page folder);
     Deferred.never ()
 
 
@@ -166,8 +167,9 @@ let () =
         empty
         +> anon ("[Sort Type]" %:string)
         +> anon ("[Page Number]" %:string)
+        +> flag "-test" no_arg ~doc:" store crawl data as test data"
     )
-    (fun sort page () -> crawl_question_url sort page)
+    (fun sort page test () -> crawl_question_url sort page test)
     |> Command.run ~version:"0.1" ~build_info:"ENGG5103"
 
 
