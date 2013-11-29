@@ -149,16 +149,20 @@ let prepare_dir dirname =
   >>| fun is_dir -> if is_dir then ()
   else ignore(Unix.mkdir dirname) 
 
-let crawl_question_url sort page test =
-    let folder = if test then "test" else "crawl" in
-    ignore(prepare_dir folder);
-    ignore(get_html (query_uri sort page)
+let crawl_page sort page folder =
+  ignore(get_html (query_uri sort page)
     >>| fun url_list -> 
           let filtered = filter_question url_list in
               Deferred.all (crawl_question filtered)
-              >>| fun html_list -> print_result html_list sort page folder);
-    Deferred.never ()
+              >>| fun html_list -> print_result html_list sort page folder)
 
+let crawl_question_url sort start page test =
+  let folder = if test then "test" else "crawl" in
+    ignore(prepare_dir folder);
+    for i=start to (start+page) do
+      crawl_page sort (string_of_int i) folder
+    done;
+    Deferred.never ()
 
 let () =
     Command.async_basic
@@ -166,10 +170,11 @@ let () =
     Command.Spec.(
         empty
         +> anon ("[Sort Type]" %:string)
-        +> anon ("[Page Number]" %:string)
+        +> anon ("[Start Page Number]" %:int)
+        +> anon ("[Number of Pages]" %:int)
         +> flag "-test" no_arg ~doc:" store crawl data as test data"
     )
-    (fun sort page test () -> crawl_question_url sort page test)
+    (fun sort start page test () -> crawl_question_url sort start page test)
     |> Command.run ~version:"0.1" ~build_info:"ENGG5103"
 
 

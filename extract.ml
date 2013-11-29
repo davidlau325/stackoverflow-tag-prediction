@@ -121,7 +121,7 @@ let count_base_level () =
 			let (num,_) = get_occurrence ("tags/" ^ tag) in
 				let pro = (Float.of_string num) /. (Float.of_int !total_tag) in
 					let base_level = log (pro /. (1.0 -. pro)) in
-				write_string ~path:("tags/" ^ tag) ~append:true ~s:(" " ^ (Float.to_string_hum ~decimals:3 ~strip_zero:true base_level))
+				write_string ~path:("tags/" ^ tag) ~append:true ~s:(" " ^ (Float.to_string base_level))
 			end
 			else ()
 			)
@@ -143,12 +143,12 @@ let compute_strength_assoc () =
 								((Float.of_string nRow) *. (Float.of_string nCol))) in
 					let pIJ = ((Float.of_string nJI) /. (Float.of_string nRow)) in
 					hJ := !hJ +. (pIJ *. ((log10 pIJ) /. (log10 2.0)));
-					write_string ~path:tag_path ~append:true ~s:(" " ^ Float.to_string_hum ~decimals:3 ~strip_zero:true sAssc)
+					write_string ~path:tag_path ~append:true ~s:(" " ^ Float.to_string sAssc)
 				end
 				else ()
 			);
 			if !hMax < (-.(!hJ)) then hMax := (-.(!hJ));
-			write_string ~path:word_count_path ~append:false ~s:(word ^ " " ^ nRow ^ " " ^ Float.to_string_hum ~decimals:3 ~strip_zero:true (-.(!hJ)))
+			write_string ~path:word_count_path ~append:false ~s:(word ^ " " ^ nRow ^ " " ^ Float.to_string (-.(!hJ)))
 			end
 			else () 
 		);
@@ -162,7 +162,7 @@ let compute_scaled_entropy () =
 				let (_,hJ) = get_occurrence count_path in
 				let eJ = 1.0 -. ((Float.of_string hJ) /. !hMax) in
 				sumEj := !sumEj +. eJ;
-				write_string ~path:count_path ~append:true ~s:(" " ^ Float.to_string_hum ~decimals:3 ~strip_zero:true eJ)
+				write_string ~path:count_path ~append:true ~s:(" " ^ Float.to_string eJ)
 			end
 			else ()
 		);
@@ -175,12 +175,12 @@ let run_extract () =
 		count_base_level ();
 		compute_strength_assoc ();
 		compute_scaled_entropy ();
-		write_string ~path:"stat.txt" ~append:false ~s:((Float.to_string_hum ~decimals:3 ~strip_zero:true !hMax) ^ " " ^ (Float.to_string_hum ~decimals:3 ~strip_zero:true !sumEj))
+		write_string ~path:"stat.txt" ~append:false ~s:((Float.to_string !hMax) ^ " " ^ (Float.to_string !sumEj))
 
 let () = 
 	prepare_dir ["words";"tags"];
 	Command.basic 
-		~summary: "Extract word co-occurances and tags information from file"
+		~summary: "Training on the crawl dataset"
 		Command.Spec.(
 			empty
 		)

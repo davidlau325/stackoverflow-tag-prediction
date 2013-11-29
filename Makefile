@@ -4,11 +4,15 @@ crawler:
 extract:
 	corebuild extract.native
 
+predict:
+	corebuild predict.native
+
 .PHONY:clean_build
 clean_build:
 	@rm -r _build || (echo "The build is already clean")
 	@rm crawler.native || (echo "No crawler.native found")
 	@rm extract.native || (echo "No extract.native found")
+	@rm predict.native || (echo "No predict.native found")
 	@echo "Clean build file done!"
 
 .PHONT:clean_crawl
@@ -21,6 +25,7 @@ clean_crawl:
 clean_extract:
 	@rm -r words || (echo "No words directory found")
 	@rm -r tags || (echo "No tags directory found")
+	@rm stat.txt || (echo "No stat.txt file found")
 	@echo "Clean extract file done!"
 
 
