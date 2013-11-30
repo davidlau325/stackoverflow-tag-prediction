@@ -131,9 +131,10 @@ let print_result html_list sort page folder =
       let fd = Out_channel.create (folder ^ "/" ^ sort ^ "-" ^ page ^ ".txt") in
         protect ~f:(fun () ->
           Out_channel.output_string fd (String.concat ~sep:"\n@@@@\n" final_list);
-          printf "Done!\n"
+          printf "Done! %s %s\n" sort page;
+          Out_channel.flush stdout
         )
-        ~finally:(fun () -> Out_channel.close fd; Shutdown.shutdown 0)
+        ~finally:(fun () -> Out_channel.close fd)
 
 let get_question uri =
     get_html uri
@@ -150,19 +151,28 @@ let prepare_dir dirname =
   else ignore(Unix.mkdir dirname) 
 
 let crawl_page sort page folder =
-  ignore(get_html (query_uri sort page)
+    get_html (query_uri sort page)
     >>| fun url_list -> 
           let filtered = filter_question url_list in
               Deferred.all (crawl_question filtered)
-              >>| fun html_list -> print_result html_list sort page folder)
+              >>| fun html_list -> print_result html_list sort page folder
+
+let rec init_list start last =
+  if start = last then []
+  else start::(init_list (start+1) last)
 
 let crawl_question_url sort start page test =
   let folder = if test then "test" else "crawl" in
-    ignore(prepare_dir folder);
-    for i=start to (start+page) do
-      crawl_page sort (string_of_int i) folder
-    done;
-    Deferred.never ()
+      ignore(prepare_dir folder);
+      ignore(Deferred.List.map ~how:`Parallel (init_list start (start+page))
+        ~f:(fun num -> crawl_page sort (string_of_int num) folder)
+      );
+
+     (* for i=start to (start+page) do
+        ignore((crawl_page sort (string_of_int i) folder)
+        >>| fun _ -> ()) 
+      done; *)
+      Deferred.never ()
 
 let () =
     Command.async_basic
