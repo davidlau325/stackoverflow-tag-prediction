@@ -83,22 +83,16 @@ let filter_question html =
       let filtered_list = List.filter ~f: is_question html_list in
         List.map ~f: is_url filtered_list
 
-type content_type = Title | CodeEnd | PEnd | Content | ContentEnd | Tag | TagEnd
+type content_type = Title | Content | ContentEnd | Tag | TagEnd
 
 let rec is_title_content = function
         | ([],_) -> []
         | (x::xs,Title) -> if (is_title x) 
-                        then  (get_title x)::"\n###\n"::(is_title_content (xs,Content))
+                        then (get_title x)::"\n###\n"::(is_title_content (xs,Content))
                         else is_title_content (xs,Title)
         | (x::xs,Content) -> if (is_content x)
                              then is_title_content (xs,ContentEnd)
                              else is_title_content (xs,Content)
-        | (x::xs,CodeEnd) -> if (is_code_end x)
-                             then is_title_content (xs,ContentEnd)
-                             else x::(is_title_content (xs,CodeEnd))
-        | (x::xs,PEnd) -> if (is_content_end x)
-                          then x::(is_title_content (xs,ContentEnd))
-                          else x::(is_title_content (xs,PEnd))
         | (x::xs,ContentEnd) -> if (is_div_end x)
                                 then "\n###\n"::(is_title_content (xs,Tag))
                                 else if String.is_empty x
@@ -119,14 +113,19 @@ let filter_meaningless html =
     let less = Regex.create_exn "<[^>]*>|<a(.+?)</a>|&#39;|&#39;|&nbsp;|&ldquo;|&rdquo;|&gt;|&lt;|[^a-zA-Z0-9#\+\-\n ]" in 
       Regex.replace_exn ~f:(fun _->" ") less html
 
+let filter_tag_meaningless html =
+    let less = Regex.create_exn "<[^>]*>|<a(.+?)</a>|&#39;|&#39;|&nbsp;|&ldquo;|&rdquo;|&gt;|&lt;" in 
+      Regex.replace_exn ~f:(fun _->" ") less html
+
 let filter_title_content html = 
     let post = List.rev (is_title_content ((String.split_lines html),Title)) in
-        String.concat post
-        |> filter_meaningless
+      let tags = List.hd_exn post in
+        let rest = String.concat (List.tl_exn post) in
+        String.concat [(filter_tag_meaningless tags);(filter_meaningless rest)]
         |> filter_extra_white
         |> String.lowercase
     
-let print_result html_list sort page folder =
+let print_result html_list sort page folder = 
     let final_list = List.map ~f:filter_title_content html_list in
       let fd = Out_channel.create (folder ^ "/" ^ sort ^ "-" ^ page ^ ".txt") in
         protect ~f:(fun () ->
@@ -164,14 +163,16 @@ let rec init_list start last =
 let crawl_question_url sort start page test =
   let folder = if test then "test" else "crawl" in
       ignore(prepare_dir folder);
-      ignore(Deferred.List.map ~how:`Parallel (init_list start (start+page))
-        ~f:(fun num -> crawl_page sort (string_of_int num) folder)
-      );
+      ignore(Deferred.List.map (init_list start (start+page))
+        ~f:(fun num -> (crawl_page sort (string_of_int num) folder)
+                        >>| fun a -> a
+                        >>| fun _ -> ()
+      )); 
 
-     (* for i=start to (start+page) do
-        ignore((crawl_page sort (string_of_int i) folder)
-        >>| fun _ -> ()) 
-      done; *)
+(*
+      for i=start to (start+page) do
+        ignore((crawl_page sort (string_of_int i) folder))
+      done;  *)
       Deferred.never ()
 
 let () =

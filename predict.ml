@@ -19,6 +19,7 @@ let get_data tag_path first second =
 
 let get_original_tag line word_list =
 	let tag_list = String.split ~on:' ' line in
+		printf "%d - " !countTest;
 		List.iter (List.filter ~f:(fun tag -> tag <> "") tag_list)
 			~f:(fun tags -> printf "%s " tags);
 			printf "\n";
@@ -37,7 +38,7 @@ let compute_tag tag word_list =
 				if Sys.is_file_exn word_path then begin
 				let (_,eJ) = get_data ("words/"^word^"/_count.txt") 0 3 in
 				let (_,sAssoc) = get_data ("words/"^word^"/"^tagName^".txt") 0 3 in
-				acc +. ((Float.of_string sAssoc) *. ((Float.of_string eJ) /. !sumEj))
+				acc +. ((Float.of_string sAssoc) *. ((Float.of_string eJ)))
 				end
 				else acc 
 			))
@@ -67,13 +68,14 @@ let print_activate activate_list =
 let compute_activation word_list =
 	let tag_list = Sys.ls_dir "tags" in
 	 	let activate_list = accumulate_tag tag_list word_list [] in
-			print_activate activate_list;
+	 		let sorted_list = List.sort ~cmp:(fun r1 r2 -> Float.compare r2.act r1.act) activate_list in
+			print_activate sorted_list;
 			[]
 
 let rec loop_file fd status word_list =
 	let process_line ~fd ~status ~f ~check ~word_list =
 	match In_channel.input_line fd with
-	| None -> if check then raise IncorrectFileFormat else ()
+	| None -> if check then raise IncorrectFileFormat else let _ =(f "dummy" word_list) in ()
 	| Some line -> let words = (f line word_list) in loop_file fd status words
 	in 
 	match status with
