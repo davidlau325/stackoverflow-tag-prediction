@@ -119,17 +119,22 @@ let filter_tag_meaningless html =
 
 let filter_title_content html = 
     let post = List.rev (is_title_content ((String.split_lines html),Title)) in
-      let tags = List.hd_exn post in
+      let tags = List.hd post in
+        match tags with
+        | None -> ""
+        | Some tag -> begin
         let rest = String.concat (List.tl_exn post) in
-        String.concat [(filter_tag_meaningless tags);(filter_meaningless rest)]
+        String.concat [(filter_tag_meaningless tag);(filter_meaningless rest)]
         |> filter_extra_white
         |> String.lowercase
+        end
     
 let print_result html_list sort page folder = 
     let final_list = List.map ~f:filter_title_content html_list in
+      let filtered_final_list = List.filter final_list ~f:(fun line -> line <> "") in
       let fd = Out_channel.create (folder ^ "/" ^ sort ^ "-" ^ page ^ ".txt") in
         protect ~f:(fun () ->
-          Out_channel.output_string fd (String.concat ~sep:"\n@@@@\n" final_list);
+          Out_channel.output_string fd (String.concat ~sep:"\n@@@@\n" filtered_final_list);
           printf "Done! %s %s\n" sort page;
           Out_channel.flush stdout
         )
@@ -163,8 +168,9 @@ let rec init_list start last =
 let crawl_question_url sort start page test =
   let folder = if test then "test" else "crawl" in
       ignore(prepare_dir folder);
-      ignore(Deferred.List.map (init_list start (start+page))
-        ~f:(fun num -> (crawl_page sort (string_of_int num) folder)
+      ignore(Deferred.List.map ~how:`Sequential (init_list start (start+page))
+        ~f:(fun num -> (after (sec 8.))
+                        >>| fun () -> (crawl_page sort (string_of_int num) folder)
                         >>| fun a -> a
                         >>| fun _ -> ()
       )); 

@@ -5,10 +5,9 @@ type read_status = Tag | TagEnd | Content | ContentEnd | Title | TitleEnd
 exception IncorrectFileFormat
 exception EmptyWordFileError
 
-let total_tag = ref 0
-let total_word = ref 0
+let total_tag = ref 31054
+let total_word = ref 3906877
 let hMax = ref 0.0
-let sumEj = ref 0.0
 
 let prepare_dir dir_list =
 	List.iter ~f:(fun name -> 
@@ -35,7 +34,7 @@ let process_tag line _ =
 			else begin
 				incr total_tag;
 				let full_path = ("tags/" ^ tag ^ ".txt") in
-				if Sys.is_file_exn full_path
+				if Sys.file_exists_exn full_path
 				then begin
 					let (occur,n) = get_occurrence full_path in
 					let num = string_of_int ((int_of_string occur) + 1) in
@@ -54,7 +53,7 @@ let increase_col acc n tag full_path =
 let increase_row word add =
 	let full_path = ("words/" ^ word ^ "/_count.txt") in
 	let total =
-	if Sys.is_file_exn full_path 
+	if Sys.file_exists_exn full_path 
 	then ((int_of_string (fst (get_occurrence full_path))) + add)
 	else add
 	in
@@ -63,7 +62,8 @@ let increase_row word add =
 let process_word line tag_list =
 	let word_list = String.split ~on:' ' line in
 		List.iter word_list ~f:(fun word ->
-			if String.is_empty word then ()
+			let string_size = String.length word in
+			if (string_size = 0) || (string_size > 20) then ()
 			else begin
 				prepare_dir [("words/" ^ word)];
 				increase_row word (List.length tag_list);
@@ -71,9 +71,9 @@ let process_word line tag_list =
 					let full_path = ("words/" ^ word ^ "/" ^ tag ^ ".txt") in
 					let tag_path = ("tags/" ^ tag ^ ".txt") in
 					let (acc,n) = get_occurrence tag_path in
-					increase_col acc n tag tag_path; 
+					increase_col acc n tag tag_path;
 					incr total_word;
-					if Sys.is_file_exn full_path
+					if Sys.file_exists_exn full_path
 					then begin
 						let (_,occur) = get_occurrence full_path in 
 						let num = string_of_int ((int_of_string occur)+1) in
@@ -161,21 +161,20 @@ let compute_scaled_entropy () =
 				let count_path = ("words/" ^ word ^ "/_count.txt") in
 				let (_,hJ) = get_occurrence count_path in
 				let eJ = 1.0 -. ((Float.of_string hJ) /. !hMax) in
-				sumEj := !sumEj +. eJ;
 				write_string ~path:count_path ~append:true ~s:(" " ^ Float.to_string eJ)
 			end
 			else ()
 		);
-		printf "sumEj: %f\n" !sumEj
+		printf "sumEj: no"
 
 let run_extract () =
 	let file_list = Sys.ls_dir "crawl" in
 		List.iter file_list ~f:(fun filename -> 
-			if String.is_suffix filename ~suffix:".txt" then extract_file ("crawl/"^filename));
-		count_base_level ();
+			if String.is_suffix filename ~suffix:".txt" then extract_file ("crawl/"^filename))
+	(*	count_base_level ();
 		compute_strength_assoc ();
 		compute_scaled_entropy ();
-		write_string ~path:"stat.txt" ~append:false ~s:((Float.to_string !hMax) ^ " " ^ (Float.to_string !sumEj))
+		write_string ~path:"stat.txt" ~append:false ~s:((Float.to_string !hMax) ^ " ") *)
 
 let () = 
 	prepare_dir ["words";"tags"];
